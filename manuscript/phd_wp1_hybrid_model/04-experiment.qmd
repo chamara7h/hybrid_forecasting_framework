@@ -1,0 +1,405 @@
+# Experiment setup {#sec-experiment}
+
+## Data collection and preprocessing
+
+The data used in our study were extracted from the LMIS of Cote d'Ivoire. The dataset encompassed 156 sites distributed across 81 districts in 20 regions, covering a span of 11 contraceptive products across 7 product categories. These categories included female and male condoms, emergency contraceptives, oral contraceptives, injectables, implants, and IUDs. The dataset spanned from January 2016 to December 2019 at a monthly granularity containing 1454 time series. @fig-map shows the location of each site in Côte d'Ivoire by site type, illustrating that the sites are distributed throughout the country.
+
+Our initial exploration indicated that there were no duplicate values; however, some missing values were present in the time series. Additionally, a few time series contained stockout cases. Since our study does not focus on handling stockouts in the forecasting process, we removed the series with stockouts and missing values, as we could not determine the reasons behind those missing values. This filtering resulted in a final dataset of 1,360 time series.
+
+In our study, we focus on stock distributed^[We assume that *stock distributed* serves as a reasonable proxy for consumption data, as we eliminated stockout cases due to limited access to direct consumption data from users.] as the target variable at the site level for various contraceptive products.
+
+```{r}
+#| label: fig-map
+#| cache: true
+#| out.width: "80%"
+#| fig-width: 8
+#| fig-height: 10
+#| fig-cap: "Contraceptive stock distribution in Côte d'Ivoire by healthcare site location. The size of the circles represents the quantity of stock distributed."
+
+knitr::include_graphics(here::here("manuscript/phd_wp1_hybrid_model/map/Cote_dIvoire_map.png"))
+
+
+```
+
+## Data exploration
+
+First, we examined the time plots of the data at various aggregation levels to observe the time series features such as trend, seasonality, and noise. As illustrated in @fig-tsplot1, higher aggregation levels reveal clearer seasonal patterns and trends, while lower aggregation levels exhibit increased volatility. Additionally, the plots highlight notable differences in stock distribution across locations and products, suggesting the presence of distinct patterns associated with each.
+
+At the lowest aggregation level, depicted in @fig-tsplot2, which focuses on product distribution at individual site level, demand patterns become more heterogeneous, comprising a mix of smooth, erratic, lumpy, and intermittent demand types. Unlike the aggregate levels, where trends and seasonality are more apparent, these patterns are not easily discernible at the site level, further complicating the forecasting process.
+
+```{r}
+#| label: fig-tsplot1
+#| cache: true
+#| out.width: "80%"
+#| fig-width: 8
+#| fig-height: 10
+#| fig-cap: "Time series of contraceptive product stock distributed (Jan 2016 – Dec 2019) at various levels. The x-axis represents the month, while the y-axis indicates the number of units distributed. The panels display data from the entire country (top panel), with breakdowns by region, district, site, and product code. The bottom panel shows the number of units distributed in selected sites for specific products. To ensure clarity and prevent overplotting, only five time series are displayed for each aggregate level. These series were selected randomly and are characteristic of the patterns encountered at the respective aggregation levels."
+
+
+
+stock_tsb_zero_remove <- read.csv(here::here("data/tidy_data/stock_tsb.csv")) %>% 
+  
+  mutate(yearmonth = yearmonth(yearmonth)) %>% 
+  
+  as_tsibble(index = yearmonth, key = c(region, district, site_code, product_type, product_code))
+
+no_x_axis <- theme(
+  axis.title.x = element_blank(),
+  axis.text.x = element_blank(),
+  axis.ticks.x = element_blank()
+)
+
+# total
+
+total <- stock_tsb_zero_remove %>%
+  index_by(yearmonth) %>% 
+  summarise(stock_distributed = sum(stock_distributed)) %>%
+  autoplot(stock_distributed) +
+  labs(x = "", y = "Stock Distributed") +
+  ggthemes::theme_few() +
+  no_x_axis
+
+# region
+
+region_code = c("AGNEBY-TIASSA-ME", "GBOKLE-NAWA-SAN PEDRO", "ABIDJAN 2", "CAVALLY-GUEMON", "PORO-TCHOLOGO-BAGOUE")
+
+
+region <- stock_tsb_zero_remove  %>%
+  filter(region %in% region_code) %>% 
+  group_by(region) %>% 
+  summarise(stock_distributed = sum(stock_distributed)) %>%
+  ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(region))) +
+  geom_line() +
+  labs(y = "Stock Distributed", color = "Region") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_colorblind() +
+  no_x_axis
+
+# district
+
+district_code = sample(stock_tsb_zero_remove$district, 5)
+
+
+district <- stock_tsb_zero_remove  %>%
+  filter(district %in% district_code) %>% 
+  group_by(district) %>% 
+  summarise(stock_distributed = sum(stock_distributed)) %>%
+  ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(district))) +
+  geom_line() +
+  labs(y = "Stock Distributed", color = "District") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_colorblind() +
+  no_x_axis
+
+
+# site code
+
+
+site = sample(stock_tsb_zero_remove$site_code, 5)
+
+
+site_p <- stock_tsb_zero_remove %>%
+  filter(site_code %in% site) %>% 
+  group_by(site_code) %>% 
+  summarise(stock_distributed = sum(stock_distributed)) %>%
+  ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(site_code))) +
+  geom_line() +
+  labs(y = "Stock Distributed", color = "Site Code") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_colorblind() +
+  no_x_axis
+
+
+# product code
+
+product = c("AS27138" , "AS27000", "AS27137", "AS27133", "AS27132", "AS27138")
+
+
+product_p <- stock_tsb_zero_remove  %>%
+  filter(product_code %in% product) %>% 
+  group_by(product_code) %>% 
+  summarise(stock_distributed = sum(stock_distributed)) %>%
+  ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(product_code))) +
+  geom_line() +
+  labs(x = "Month", y = "Stock Distributed", color = "Product Code") +
+  ggthemes::theme_few() +
+  ggthemes::scale_color_colorblind()
+
+
+total/
+  region/
+  district/
+  site_p/
+  product_p
+
+```
+
+```{r}
+#| label: fig-tsplot2
+#| cache: true
+#| out.width: "80%"
+#| fig-width: 10
+#| fig-height: 6
+#| fig-cap: "Time series of contraceptive product stock distributed in selected sites for specific products(Jan 2016 – Dec 2019). To ensure clarity and prevent overplotting, only five of the products are displayed. These series were selected randomly and represent characteristic patterns at this level."
+
+# id_code <- c("C2062AS27000", "C2015AS27132", "C4026AS27133", "C4061AS27138", "C1101AS27137")
+# 
+# stock_tsb_zero_remove %>% filter_index(. ~ "2019 Sep") %>%
+#   filter(id %in% id_code) %>%
+#   group_by(site_code, product_code) %>% 
+#   ggplot(aes(x = yearmonth, y = stock_distributed, color = product_code, group = product_code)) +
+#   geom_line() +
+#   labs(x = "Month", y = "Stock Distributed", color = "Product Code") +
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+#   ggthemes::theme_few() +
+#   ggthemes::scale_color_colorblind()
+
+
+id_code <- c("C2062AS27000", "C1073AS27133", "C4026AS27133", "C4061AS27138", "C1101AS27137", 'C2070AS46000')
+
+stock_tsb_zero_remove %>%
+    filter(id %in% id_code) %>%
+    group_by(site_code, product_code) %>% 
+    ggplot(aes(x = yearmonth, y = stock_distributed, color = product_code)) +
+    geom_line() +
+    labs(x = "Month", y = "Stock Distributed") +
+    ggthemes::theme_few() +
+    # hrbrthemes::theme_ipsum() +
+    # ggthemes::scale_color_colorblind() +
+    facet_wrap(vars(site_code), scales = "free_y") +
+    theme(axis.text.x = element_text(angle=45, hjust=1))
+
+```
+
+Next, we examined the time series data of the products at the site level to gain a clearer understanding of trend and seasonality patterns, as our primary focus is on forecasting each product at the site level. However, due to the large number of time series, it was not visually feasible to plot all individual series together to simultaneously inspect trends and seasonality. Therefore, we employed the Seasonal and Trend Decomposition using Loess (STL) method [@Cleveland1990] to extract key features from all 1,360 time series.
+
+As shown in @fig-feature, the strength of trend and seasonality for each time series is represented on a scale from 0 to 1, where 0 indicates low strength and 1 indicates high strength. The majority of the time series exhibited moderate levels of both trend and seasonality. However, even within the same product code, we observed variations in trend and seasonality patterns, which posed challenges for the forecasting process. Consequently, we considered a range of forecasting approaches, including time series, Bayesian, ML, and foundational time series methods, to determine which could most effectively handle the diverse patterns within the time series.
+
+```{r}
+#| label: fig-feature
+#| cache: true
+#| out.width: "70%"
+#| fig.align: center
+#| fig-cap: "The trend strength and seasonality in the time series of stock distributed. The scatter plot comprises 1360 data points, with each point representing a specific time series."
+
+# time series features
+
+stock_feat <- stock_tsb_zero_remove |>
+  features(stock_distributed, feat_stl)
+
+stock_feat |>
+  ggplot(mapping = aes(x= trend_strength, y = seasonal_strength_year, color = product_code)) +
+  geom_point(alpha = 0.75) + 
+  labs(x = "Strength of trend", y = "Strength of seasonality", color = 'Product code') +
+  scale_color_viridis_d(option = "D") + # Use the viridis palette
+  ggthemes::theme_few()
+
+```
+
+## Forecasting setup
+
+Our forecast setup began with data collection and preparation of a tidy dataset for the forecasting process. Following this, we carried out feature engineering. As outlined by @kolassa2023, incorporating lag predictors and rolling window statistics is beneficial for improving forecasting methods. In addition to these, we also integrated categorical and date features into the forecasting process. To ensure we selected the most relevant variables, a feature importance analysis was conducted to identify the best predictors for the forecasting methods.
+
+In the USAID forecasting competition, the planning horizon was set to 3 months. However, instead of using fixed training and test sets as in the competition, we adopted the time series cross-validation approach to create the training and test sets [@hyndman2021forecasting]. Unlike the fixed approach, where the same training and test sets are used for evaluation, time series cross-validation moves the forecasting origin forward by a fixed number of steps, producing multiple forecasts at different points in time. This allows for the calculation of multi-step errors, giving a more robust view of how methods perform across various demand scenarios, such as periods of high and low demand [@svetunkov2023].
+
+In our study, we applied cross-validation, using one-step-ahead rolling windows with a 3-step-ahead forecasting horizon to align with the competition requirements. We limited the number of rolling origins to 3 per series due to computational constraints, but this still provided us with meaningful insights into method performance over time. For forecasting, we employed recursive multi-step forecasting and we generated 1000 future paths per a series. All method development and hyper-parameter tuning were conducted using only the training data to ensure that the evaluation remained unbiased and the methods were properly validated.
+
+### Probabilistic forecasting using bootstraping
+
+To express the uncertainty of our forecasting methods' estimates, we utilize probability distributions of potential future values. Several methods are available to estimate prediction intervals, including analytical prediction intervals, bootstrapping, quantile regression, Bayesian modeling (using MCMC sampling), and conformal prediction. In our study, we employ the bootstrapping method to estimate these intervals [@gneiting2014].
+
+To account for uncertainty in predictions, we assume that future errors will resemble past errors. We define the error as the difference between the actual value and the forecasted value:
+
+$$
+e_t = y_t-\hat{y}_{t}
+$$ 
+
+where; $e_t$ is the error at time $t$, $y_t$ is the actual value and $\hat{y}_{t}$ is the forecast value at time $t$.
+
+We simulate different future predictions by sampling from the collection of past errors and adding these to the forecast estimates. Each bootstrap iteration produces a different potential future path. By repeating this process, we generate a distribution of possible outcomes. Based on a chosen significance level, prediction intervals can then be constructed from this distribution [@hyndman2021forecasting].
+
+To implement the bootstrapping process, we use the fable package in R for time series methods and the skforecast package for ML methods [@amatrodrigo2023]. However, for the Bayesian methods, this process is not necessary as it inherently provides probabilistic forecasts as part of its output. Similarly, foundational time series methods also deliver probabilistic forecasts directly.
+
+### Forecast combination
+
+Forecast combination is a promising approach to enhance forecasting performance by aggregating multiple forecasts generated using different methods for a specific time series. This technique eliminates the need to select a single "best" forecasting method, thus leveraging the strengths of various methods [@wang2023]. Known as either *forecast combination* or *forecast ensemble* across different fields, this method has been widely used and extensively studied [@godahewa2021]. The literature provides substantial evidence that forecast combinations consistently outperform individual forecasts [@ranjan], primarily by mitigating uncertainties arising from data variability, parameter estimation, and method selection [@wang2023].
+
+Forecast combination methods can range from linear combinations, nonlinear combinations, and time-varying weights, to more sophisticated approaches like cross-learning, correlations among forecasts, or Bayesian techniques [@wang2023]. Among these, the most widely adopted approach is the linear combination with equal weights [@godahewa2021]. This method is not only straightforward to implement and interpret but also provides robust and improved forecasting performance [@ranjan; @godahewa2021; @thompson2024]. Consequently, in our study, we applied a linear combination approach with equal weights to generate combined forecasts.
+
+## Forecasting methods
+
+In our study, we employed a range of forecasting methods to address the volatile nature of the time series data. For time series methods, we used sNAIVE, Moving Average (MA), Exponential Smoothing State Space (ETS), ARIMA, and Syntetos-Boylan approximation (SBA). As Bayesian methods, we implemented the Bayesian Structural Time Series (BSTS) method with regressors. For ML methods, we applied Multiple Linear Regression (MLR), Random Forest (RF), LightGBM (LGBM), and XGBoost (XGB). These methods were selected due to their popularity, efficiency, and ease of implementation within the forecasting domain [@makridakis2022]. Furthermore, for the ML methods, we developed each as a global method, where a single method was trained to produce forecasts for all time series simultaneously [@bandara2021].
+
+Additionally, we explored foundational time series approaches such as TimeGPT [@garza], Chronos [@ansari] and Lag Llama [@rasul], which are gaining attention due to advancements in large language models (LLMs) and also capable of producing probabilistic forecasts. These methods offer zero-shot forecasting capabilities, meaning they have been pre-trained on vast amounts of time series data and can be applied to new time series without the need for retraining or fine-tuning parameters [@carriero]. This feature significantly reduces the steps typically required in the forecasting process, such as data preparation, model training, and model selection [@garza]. However, these methodologies have yet to be tested within the FPSC context.
+
+To offer a more comprehensive comparison of forecasting methods in contraceptive demand forecasting, we incorporated a demographic forecasting method. This method uses demographic data such as population size, age distribution, and other family planning indicators to estimate future contraceptive demand [@akhlaghi2013]. Given that we did not have access to the final forecasts generated at the site level by demand planners, we assumed that the demographic-based method serves as a proxy for expert-driven forecasts. This assumption is grounded in the fact that experts typically leverage their domain knowledge when determining key family planning indicators.
+
+### Time series methods
+
+***sNAIVE***: This method is a simple forecasting approach where forecasts are generated using the most recent observation from the corresponding period of the previous cycle. This method is often used as a benchmark in time series forecasting [@hyndman2021forecasting] and which can be shown as;
+
+$$
+\hat{y}_{t+h}=y_{t+h-s}
+$$
+
+Where $\hat{y}_{t+h}$ is the forecast for $t+h$, and $s$ is the seasonality period. We implemented this method using the SNAIVE() function in the fable package in R [@fable2022].
+
+***MA***: MA method is a simple forecasting approach that generates predictions by averaging a fixed number of the most recent observations. This method helps to smooth out short-term fluctuations while emphasizing longer-term trends in the data. The method assumes that future values can be reasonably estimated based on the mean of past values over a specified window [@hyndman2021forecasting]. MA method can be represented as:
+
+$$
+\hat{y}_{t+1} = \frac{1}{n} \sum_{i=0}^{n-1} y_{t-i}
+$$
+
+where $\hat{y}{t+1}$ is the forecast for the next time period, $n$ is the number of past observations (the window size), and $y{t-i}$ are the actual values from previous periods.Due to the simplicity nature of this method, it is often used in the FPSC context. We implemented this method using the MEAN() function in the fable package in R [@fable2022]
+
+***ETS***: ETS model accommodates trends, seasonality, and error terms within time series data through various approaches, such as additive, multiplicative, or mixed models within a state-space framework. The model updates these components dynamically over time using recursive equations. The ETS model is capable of handling diverse time series patterns, including trends and seasonal fluctuations [@hyndman2021forecasting]. Given the large number of series in our dataset, we utilized the automated ETS model, which selects the optimal model based on Akaike’s Information Criterion (AIC) for each time series. We used the ETS() function in the fable package in R [@fable2022] to implement this model.
+
+***ARIMA***: ARIMA model forecasts based on trends, autocorrelation, and noise within time series data. It is also flexible and can handle both non-seasonal and seasonal data by incorporating seasonal components. ARIMA parameters (*p,d,q*) denote the orders of the auto-regressive (AR) component, differencing, and moving average (MA) component, respectively. ARIMA is particularly effective for data with a pronounced temporal structure [@hyndman2021forecasting]. Like with the ETS model, we employed an automated approach to fit ARIMA models for each time series using the ARIMA() function in the fable package in R, which selects the best model using similar criteria [@fable2022].
+
+***SBA***: Since some time series exhibit an intermittent demand nature, we also employed the SBA method in our study, an enhancement of Croston's original method from 1972 [@syntetos2005]. The SBA approach methods intermittent demand as a binomial process by separately estimating the demand intervals and the demand sizes when they occur. This method applies a correction factor to reduce the inherent positive bias of the original Croston method, making the forecasts more accurate. We implemented this method using the CROSTON(type = 'sba') function in the fable package in R [@fable2022].
+
+### Bayesian methods
+
+***BSTS***: The BSTS method used in our study combines a local linear trend and a seasonal component, incorporating additional covariates to fit the observed data [@kohns2023]. The local linear trend is a time-varying method that captures the evolving pattern of the time series over time. It consists of a level and a slope, both of which are allowed to change dynamically. The state equations for this are:
+
+$$
+\mu_t = \mu_{t-1} + \beta_{t-1} + \eta_t, \quad \eta_t \sim N(0, \sigma_{\eta}^2)
+$$ $$
+\beta_t = \beta_{t-1} + \zeta_t, \quad \zeta_t \sim N(0, \sigma_{\zeta}^2)
+$$ where; $\mu_t$ is the level at $t$, $\beta_t$ is the slope at $t$, $\eta_t$ and $\zeta_t$ are normally distributed errors with variances $\sigma_{\eta}^2$ and $\sigma_{\zeta}^2$ respectively.
+
+The seasonal component captures regular patterns that repeat over a fixed period and it is modeled as:
+
+$$
+S_t = -\sum_{j=1}^{m-1} S_{t-j} + \omega_t, \quad \omega_t \sim N(0, \sigma_{\omega}^2)
+$$where; $S_t$ is the seasonal effect at time $t$, $m$ is the number of seasons (in our case, $m$ = 12 for monthly data) and $w_t$ is the normally distributed error with variance $\sigma_{\omega}^2$.
+
+The observed data (i.e., target variable) is modeled as a linear combination of the local linear trend, seasonal component, and additional regressors. This is represented by the observation equation:;
+
+$$
+y_t = \mu_t + S_t + X_t \beta + \epsilon_t, \quad \epsilon_t \sim N(0, \sigma_{\epsilon}^2)
+$$
+
+where; $X_t$ are the regressors, $\beta$ are the corresponding coefficients and $\epsilon_t$ is the noise.
+
+Posterior distributions for parameters are estimated using Markov Chain Monte Carlo (MCMC) methods [@kohns2023]. The predicted future values are obtained by simulating from these posterior distributions and thus quantifying the uncertainty given the Bayesian nature of the method [@martin2024].
+
+### ML methods
+
+***MLR***: MLR methods establish linear relationships between the target variable and multiple predictor variables. The method estimates coefficients for each predictor variable by minimizing the residual sum of squares between observed and predicted values. These methods are particularly useful when demand is influenced by various factors [@hyndman2021forecasting]. In our study, we implemented this method using the LinearRegression() function from the sklearn package in Python [@scikit-learn].
+
+***RF***: RF is an ensemble learning method that constructs a collection of decision trees, each trained on a bootstrap sample of the original data. The predictions of these trees are aggregated to produce the final forecast [@breiman2001]. We used the RandomForestRegressor() function from the sklearn package in Python [@scikit-learn] to implement the RF method.
+
+***Gradient Boosted Regression Trees (LGBM and XGB)***: These methods are known for their efficiency and ease of implementation [@makridakis2022]. These methods use an ensemble of decision trees, where each new tree is added to correct the residuals of the previous trees in an iterative manner [@januschowski2022]. Unlike Random Forest, which builds trees independently, gradient boosting methods focus on improving method performance iteratively. In our study, we selected LightGBM (LGBM) and XGBoost (XGB) for their ability to handle multiple predictor variables in various forms (binary, categorical, and numeric) and their effectiveness in providing reliable and accurate forecasts [@makridakis2022]. We used the LGBMRegressor() function from the LightGBM package in Python [@MicrosoftCorporation2022] and the XGBRegressor() function from the XGBoost package in Python [@XgboostDevelopers2021]. Hyperparameter tuning for both LGBM and XGB was performed using grid search, with the Poisson distribution chosen as the objective function due to the count nature of the target variable.
+
+### Foundational time series methods
+
+***TimeGPT***: TimeGPT is the first pre-trained foundational method specifically designed for time series forecasting, developed by Nixtla [@garza]. It employs a transformer-based architecture with an encoder-decoder setup, but unlike other methods, it is not derived from existing large language methods (LLMs); rather, it is purpose-built to handle time series data. TimeGPT was trained on over 100 billion data points, encompassing publicly available time series from a variety of domains, including retail, healthcare, transportation, demographics, energy, banking, and web traffic. Due to the diversity of these data sources and the range of temporal patterns they exhibit, TimeGPT can effectively handle a wide variety of time series characteristics. Additionally, the method can incorporate external regressors into the forecasting process and is capable of producing quantile forecasts, allowing for robust uncertainty estimation (see @ansari for a detailed overview).
+
+***Chronos***: Chronos is a univariate probabilistic foundational time series method developed by Amazon [@ansari]. Like TimeGPT, it is based on a transformer architecture in an encoder-decoder configuration, but it trains an existing LLM architecture using tokenized time series via cross-entropy loss. Chronos was pre-trained on a large publicly available time series dataset, as well as on simulated data generated through Gaussian processes. The method was trained on 28 datasets, comprising approximately 84 billion observations. Chronos is based on the T5 family of methods, offering different versions with parameter sizes ranging from 20 million to 710 million. The four pre-trained methods available for forecasting are: 1) Mini (20 million), 2) Small (46 million), 3) Base (200 million), and 4) Large (710 million) (see @ansari for a detailed overview). In our study, we employed the Base Chronos T5 method for its balance between performance and computational efficiency.
+
+***Lag Llama***: Lag Llama is another univariate probabilistic foundational time series method, which is based on the LLaMA architecture and utilizes a decoder-only structure [@rasul]. The method tokenizes time series data using lags as covariates and applies z-normalization at the window level. This approach focuses on learning time series behavior from past observations. Lag Llama was trained on 27 publicly available time series datasets across six domains: nature, transportation, energy, economics, cloud operations, and air quality. With 25 million parameters, this method is designed to handle diverse time series frequencies and features, making it suitable for a wide range of forecasting tasks (see @rasul for a detailed overview).
+
+### Demographic forecasting method
+
+In the FPSC context, the demographic forecasting method is employed to estimate contraceptive needs for a given population based on a set of family planning indicators during the forecast period. This method is formulated as a combination of these indicators and population dynamics, as represented in the following equation [@akhlaghi2013]:
+
+$$
+y_{i,t} = \left( \sum_{j=15}^{50} \left(mCPR_{t,j} \times Women Population_{t,j} \right) \right) \times Method Mix_{t,i} \times CYP_{t,i} \times Brand Mix_{t,i} \times Source Share_t
+$$
+
+Where $i$ represents the product, $j$ is the age group, $mCPR$ is the modern contraceptive prevalence rate, and $CYP$ refers to couple-years of protection.
+
+$Women Population_{t,j}$ denotes the total population of women in a selected location, typically within the age range of 15-49 years, which is the standard range used in census data or demographic health surveys. For our study, we sourced this population data from WorldPop [@worldpop] and mapped it to each healthcare site based on the latitude and longitude coordinates of those sites.
+
+$mCPR$ stands for the percentage of women of reproductive age using modern contraceptives, with data collected from the PMA Data Lab [@pmadata].
+
+$Method Mix$ represents the share of different contraceptive methods being used, including injectables, IUDs, implants, pills, and condoms. This data is also obtained from the PMA Data Lab [@pmadata].
+
+$CYP$ is a metric estimating the protection from pregnancy provided by a contraceptive method over one year. For example, an implant can cover 3.8 years, so CYP adjusts for such longer-acting methods. We collected this data from USAID [@usaid_cyp].
+
+$Brand Mix$ reflects the brand share percentage within each contraceptive method. This was calculated using historical data.
+
+$Source Share$ refers to where women of reproductive age, using a specific method and brand, obtain their products. This mix typically includes public, private, NGO/SMO (social marketing organizations), and other small providers. Data was gathered through discussions with USAID officials.
+
+This equation provides $y_{i,t}$, which is the total annual point estimate of contraceptives required for product $i$ at time $t$. It is typically used at the national level on an annual basis to inform procurement decisions [@akhlaghi2013].
+
+However, as our study focuses on monthly estimates at the healthcare site level, we revised the equation by introducing a weighting factor, $w_t$, to distribute the annual estimates across months. The revised equation is as follows:
+
+$$
+y_{i,t,s} = \left( \sum_{j=15}^{50} \left(mCPR_{t,j} \times Women Population_{t,j,s} \right) \right) \times Method Mix_{t,i} \times CYP_{t,i} \times Brand Mix_{t,i} \times \ Source Share_t \times w_t
+$$
+
+Where $w_t$ represents the monthly weight, $s$ is the healthcare site, and $y_{i,t,s}$ is the monthly point forecast for product $i$ at healthcare site $s$.
+
+### Overview of candidate methods
+
+In our study, we developed 20 candidate methods by experimenting with different combinations of predictors and by combining various forecasting methods. For the MA method, we opted to use a three-month averaging period, aligning with the current practice at the site level in Côte d'Ivoire. Additionally, we developed two model combinations using equal-weight linear averaging: a combined statistical model and a combined ML model.
+
+To create hybrid probabilistic methods, we combined point forecasts from the demographic method with the combined ML method, resulting in a hybrid combined method. This hybrid method synthesizes insights from both the demographic point forecast and the probabilistic algorithm-based forecast, aiming to capture expert knowledge alongside data-driven characteristics of machine learning methods. This integration is intended to enhance forecast accuracy by leveraging the strengths of both approaches.
+
+We developed two variations of the hybrid probabilistic method based on our proposed methods. A detailed overview of all 20 candidate methods is provided in @tbl-models. We also explored several other approaches to develop different forecast method variations. These included using demographic indicators as predictors, different method combinations and applying hierarchical forecasting reconciliation to combine demographic-based forecasts with algorithm-based forecasting methods. However, we decided not to include the results of these methods, as they did not improve the performance significantly.
+
+```{r}
+#| label: tbl-models
+#| echo: false
+#| cache: false
+#| tbl-cap: "Proposed candidate methods in our study"
+
+library(tidyverse)
+library(kableExtra)
+
+  read.csv(here::here("manuscript/phd_wp1_hybrid_model/tables/model_tbl.csv")) |>
+  rename('Predictor variables' = Predictor.variables,
+         'Probabilistic Forecasts' = Probabilistic.Forecasts) |>
+  knitr::kable(booktabs = T, linesep = "") |>
+  kable_styling(latex_options = "scale_down", font_size = 8) |>
+  column_spec(1, "6em") |>
+  column_spec(2, "6em") |>
+  column_spec(3, "28em") |>
+  column_spec(4, "28em") |>
+  column_spec(5, "6em") |>
+  landscape()
+
+```
+
+
+## Performance evaluation
+
+To assess the performance of our forecasting methods, we used both point forecast and probabilistic forecast evaluation metrics. We evaluated point forecasts using the MASE, a scale-independent metric that provides robustness, and stability [@kolassa2023]. The MASE formula is:
+
+$$
+  \text{MASE} = \text{mean}(|q_{t}|),
+$$
+
+where
+
+$$
+  q_{t} = \frac{ e_{t}}
+ {\displaystyle\frac{1}{n-m}\sum_{t=m+1}^n |y_{t}-y_{t-m}|},
+$$
+
+Here, $e_t$ is the point forecast error for forecast period $t$, $m=12$ (to account for seasonality), $y_t$ is the observed value, and $n$ is the number of observations in the training set. The denominator is the mean absolute error of the seasonal naive method over the training sample, ensuring the error is properly scaled. Smaller MASE values indicate more accurate forecasts, and since it was the metric used in the USAID competition, it allows us to compare our results with the competition submissions.
+
+To evaluate the accuracy of probabilistic forecasts, we employed the CRPS, a widely used metric in probabilistic forecasting that assesses the sharpness and calibration of the forecast distribution. The CRPS is given by:
+
+$$
+  \text{CRPS} = \text{mean}(p_j),
+$$
+
+where
+
+$$
+  p_t = \int_{-\infty}^{\infty} \left(G_t(x) - F_t(x)\right)^2dx,
+$$
+
+where $G_t(x)$ is the forecasted probability distribution function for the period $t$, and $F_t(x)$ is the true probability distribution function for the same period.
+
+CRPS is beneficial to our study as it measures the overall performance of the forecast distribution by rewarding sharpness and penalizing miscalibration [@gneiting2014]. Calibration measures how well predicted probabilities match the true observations, while sharpness focuses on the concentration of the forecast distributions [@wang2023]. Thus, CRPS provides a single score by evaluating both calibration and sharpness, making it easy to evaluate the performance of forecasting methods. In this formula, $G_t(x)$ is the forecasted cumulative distribution function (CDF) for time $t$ and $F_t(x)$ is the true CDF for the same time. The CRPS evaluates the difference between the predicted and actual probability distributions, with lower values indicating better performance [@ranjan]. It combines aspects of both calibration (the alignment of predicted probabilities with actual outcomes) and sharpness (the concentration of the forecast distribution), making it a comprehensive measure of forecast quality [@wang2023].
+
+
+
+
+
+
+

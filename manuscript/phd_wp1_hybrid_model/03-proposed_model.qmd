@@ -1,0 +1,114 @@
+# Proposed hybrid approach {#sec-model}
+
+We propose a CQRA model to generate a combined probabilistic forecast, utilizing both point and probabilistic forecasts. This approach builds upon the CQRA model introduced by @wang_combining_2018, which focuses on combining multiple probabilistic forecasts to produce a consolidated forecast distribution. The key concept in our proposed method is to generate quantiles from a given probabilistic forecast and adjust each quantile using weights. These weights are determined by treating the point forecast as the "new reality" and formulating a linear programming (LP) problem that minimizes both the pinball loss and the absolute error between point forecast and mean of the weighted quantile forecast. The pinball loss is a strictly proper scoring rule used to evaluate quantile forecasts. It measures overall quantile performance by rewarding sharpness and penalizing miscalibration [@hyndman2021forecasting].
+
+Let the quantile levels be defined as:
+
+$$
+\{q_1, q_2, \dots, q_n\} \quad \text{where} \quad q_i \in [0.01, 0.99]
+$$
+
+For a set of weights ${w_1, w_2, \dots, w_n}$ corresponding to these quantiles, the weighted quantile forecast $\hat{y_t}^{(q_i)}$ for each quantile $q_i$ at time $t$ is given by:
+
+$$
+\hat{y}_t^{(q_i)} = w_i \cdot \text{ProbForecast}_t^{(q_i)}
+$$
+
+where $\text{ProbForecast}_t^{(q_i)}$ is the probabilistic forecast for quantile $q_i$ at time $t$.
+
+The pinball loss for a quantile $q_i$ and the point forecast $\text{PointForecast}_t$ is defined as:
+
+$$
+L_{q_i}(y_t, \hat{y}_t^{(q_i)}) = (y_t - \hat{y}_t^{(q_i)}) \cdot \left(q_i - \mathbf{1}(y_t < \hat{y}_t^{(q_i)})\right)
+$$
+
+The weighted mean forecast across all quantiles is calculated as:
+
+$$
+\bar{y}_t = \frac{1}{n} \sum_{i=1}^{n} \hat{y}_t^{(q_i)}
+$$
+
+The total loss $L_t$ across all quantiles for a single time point $t$ is expressed as:
+
+$$
+L_t = \sum_{i=1}^{n} \left| \text{PointForecast}_t - \bar{y}_t \right| + \sum_{i=1}^{n} \max\left(0, (\text{PointForecast}_t - \hat{y}_t^{(q_i)}) \cdot \left(q_i - \mathbf{1}(\text{PointForecast}_t < \hat{y}_t^{(q_i)})\right)\right)
+$$ where; $\sum_{i=1}^{n} \left| \text{PointForecast}_t - \bar{y}_t \right|$ measures the absolute difference between point forecast and weighted mean quantile forecasts.
+
+The objective is to minimize the total loss $L_t$ by optimizing the weights $w_i$ across all quantiles:
+
+$$
+\min_{w_1, w_2, \dots, w_n} \sum_{t=1}^{T} L_t
+$$
+
+subject to:
+
+$$
+0 \leq w_i \leq 1, \quad \sum_{i=1}^{n} w_i = 1
+$$
+
+Once the optimal weights are identified, the final adjusted quantile forecast $\tilde{y}_t^{(q_i)}$ for each quantile $q_i$ is:
+
+$$
+\tilde{y}_t^{(q_i)} = w_i^{*} \cdot \text{ProbForecast}_t^{(q_i)}
+$$
+
+However, probabilistic forecasts may have a more dominant influence in this approach since the weights $w_i$ are restricted to the range $[0, 1]$. This implies that point forecasts are expected to align closely with the forecast distribution. When the probabilistic forecasts are reliable and the point predictions do not significantly deviate from the mean of the probabilistic forecast, this approach is recommended. However, recognizing that this is often not the case in practice, we modify the weights by allowing them to exceed 1, and we introduce a bias term to the final adjusted quantile forecast.
+
+***Modified Approach:***
+
+1.  We update the weighted quantile forecast $\hat{y}_t^{(q_i)}$ as follows:
+
+$$
+\hat{y}_t^{(q_i)} = w_i \cdot \text{ProbForecast}_t^{(q_i)} + b_t
+$$ 
+
+where $b_t$ is the bias factor at time $t$ and it is calculated as the parameter optimized alongside the weights.
+
+2.  We remove the normalization constraint $\sum_{i=1}^{n} w_i = 1$ and increase the upper bound of $w_i$ to 5:
+
+$$
+0 \leq w_i \leq 5
+$$ 
+
+Our sensitivity analysis showed that increasing the upper bound beyond 5 did not significantly improve method performance, making 5 an optimal choice for balancing flexibility and control.
+
+3.  After optimization, we apply an adjustment factor to ensure that the mean of the forecast distribution aligns with the point forecast:
+
+$$
+\tilde{y}_t^{(q_i)} = w_i^{*} \cdot \text{ProbForecast}_t^{(q_i)} \cdot adj_t
+$$
+
+The adjustment factor $adj_t$ is defined as:
+
+$$
+adj_t =  \frac{\text{PointForecast}_t}{\bar{y}_t}
+$$
+
+These adjustments ensure that the combined probabilistic forecast aligns with the central tendency of the point forecast while still capturing the uncertainty in the prediction. This approach is particularly useful when the probabilistic forecast does not include external variables that cause significant deviations in demand.
+
+After generating the weighted quantile forecast $\tilde{y}_t^{(q_i)}$ for each quantile $q_i$, we create a smooth forecast distribution by linearly interpolating between the quantile levels:
+
+$$
+\tilde{y}_t(x_j) = \tilde{y}_t^{(q_i)} + \left( \frac{x_j - q_i}{q_{i+1} - q_i} \right) \cdot \left( \tilde{y}_t^{(q_{i+1})} - \tilde{y}_t^{(q_i)} \right)
+$$
+
+where $q_i \leq x_j < q_{i+1}$ and $x_j$ are the interpolation points.
+
+The final interpolated forecast distribution $\tilde{Y}_t$ for all interpolation points $x_j$ is:
+
+$$
+\tilde{Y}_t = \{ \tilde{y}_t(x_1), \tilde{y}_t(x_2), \dots, \tilde{y}_t(x_m) \}
+$$
+
+**Remark 1**: When providing point forecasts to the method, they should first be combined with the mean forecasts from the probabilistic forecast using a simple averaging method. This combined point forecast will serve as the new central tendency (e.g., mean or median) for the overall forecast. Based on this combined central tendency, optimal weights will then be determined to enhance the accuracy and balance of the forecast by integrating both the point and probabilistic perspectives effectively.
+
+**Remark 2**: We refer to the first proposed combination method as the *Hybrid Weighted Average*, and the revised version of the combination method is termed the *Hybrid Bias Adjustment*. 
+
+Underlying assumptions of the method are;
+
+1.  The probabilistic forecasts are well-calibrated.
+2.  The point forecast accurately represents the central tendency of the future distribution.
+3.  The weights used for each quantile are restricted to non-negative values, ensuring that the final forecast distribution remains in the range of the original probabilistic forecasts.
+4.  A linear combination of quantile forecasts, point forecasts, and bias adjustment is sufficient to represent the true forecast distribution.
+5.  Linear interpolation between quantile levels accurately reflects the true underlying distribution.
+

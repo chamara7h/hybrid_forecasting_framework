@@ -1,0 +1,21 @@
+﻿Type,Method,Predictor variables,Remarks,Probabilistic Forecasts
+Time series,sNaive,Historical stock distributed data,-,Yes
+,Moving average,Historical stock distributed data,-,Yes
+,ETS,Historical stock distributed data,-,Yes
+,ARIMA,Historical stock distributed data,-,Yes
+,Croston-SBA,Historical stock distributed data,-,No
+Bayesian,BSTS reg,"Historical stock distributed data, lag values (for 1,2,3,4), lag rolling mean, 4 period rolling max, 4 period rolling zero percentage, Month and year, region, district, site type, site code, product type and product code",-,Yes
+,BSTS demo,"Historical stock distributed data, women population at each site, mCPR, method mix,CYP,  brand mix, source share",-,Yes
+ML,MLR,"Historical stock distributed data, lag values (for 1,2,3,4), lag rolling mean, 4 period rolling max, 4 period rolling zero percentage, Month and year, region, district, site type, site code, product type and product code",-,Yes
+,RF,,-,Yes
+,LGBM,,-,Yes
+,XGB,,-,Yes
+Demographic,Demographic,"Women population at each site, mCPR, method mix,CYP,  brand mix, source share, weight for each month",-,No
+Foundational,TimeGPT,Historical stock distributed data,-,Yes
+,TimeGPT reg,"Historical stock distributed data, lag values (for 1,2,3,4), lag rolling mean, 4 period rolling max, 4 period rolling zero percentage, Month and year, region, district, site type, site code, product type and product code",-,Yes
+,Chronos,Historical stock distributed data,-,Yes
+,Lag Llama,Historical stock distributed data,-,Yes
+Combination,Statistical combined,-,"Model combination using sNAVIE, MA, ETS, ARIMA. We didn’t use Croston as it only produces point forecats.",Yes
+,ML combined,-,"Model combination using RF, LGBM, XGB. We didn't use MLR because it significantly reduces combined forecast performance.",Yes
+Hybrid,Hybrid weighted average,-,Combination between demographic mdethod and ML combination using the weighted average approach.,Yes
+,Hybrid bias adjustment,-,Combination between demographic method and ML combination using the weighted average bias approach.,Yes

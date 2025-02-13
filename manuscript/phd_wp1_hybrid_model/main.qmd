@@ -1,0 +1,172 @@
+---
+title: "A Novel Hybrid Approach to Contraceptive Demand Forecasting: Integrating Point Predictions with Probabilistic Distributions"
+
+author:
+  - name: Harsha Chamara Hewage
+    email: HalgamuweHewageHR@cardiff.ac.uk
+    affiliations:
+        - id: dl4sg
+          name: Cardiff University
+          department: Data Lab for Social Good Group, Cardiff Business School
+          country: United Kingdom
+          postal-code: CF10 3EU
+    attributes:
+        corresponding: true
+        
+  - name: Bahman Rostami-Tabar
+    email: rostami-tabarb@cardiff.ac.uk
+    affiliations:
+        - id: dl4sg
+          name: Cardiff University
+          department: Data Lab for Social Good Group, Cardiff Business School
+          country: United Kingdom
+          postal-code: CF10 3EU
+    
+  - name: Aris Syntetos
+    email: syntetosa@cardiff.ac.uk
+    affiliations:
+        - id: carbs
+          name: Cardiff University
+          department: Cardiff Business School
+          country: United Kingdom
+          postal-code: CF10 3EU
+          
+  - name: Federico Liberatore
+    email: liberatoref@cardiff.ac.uk
+    affiliations:
+        - id: comsc
+          name: Cardiff University
+          department: Cardiff School of Computer Science & Informatics
+          country: United Kingdom
+          postal-code: CF24 4AG
+          
+  - name: Glenn Milano
+    email: gmilano@usaid.gov
+    affiliations:
+        - id: usaid
+          name: United States Agency for International Development
+          department: Bureau for Global Health
+          country: United States
+          postal-code: 20523
+          
+
+abstract: | 
+  Accurate demand forecasting is vital for ensuring reliable access to contraceptive products, supporting key processes like procurement, inventory, and distribution. However, forecasting contraceptive demand in developing countries presents challenges, including incomplete data, poor data quality, and the need to account for multiple geographical and product factors. Current methods often rely on simple forecasting techniques, which fail to capture demand uncertainties arising from these factors, warranting expert involvement. Our study aims to improve contraceptive demand forecasting by combining probabilistic forecasting methods with expert knowledge. We developed a hybrid model that combines point forecasts from domain-specific model with probabilistic distributions from statistical and machine learning approaches, enabling human input to fine-tune and enhance the system-generated forecasts. This approach helps address the uncertainties in demand and is particularly useful in resource-limited settings. We evaluate different forecasting methods, including time series, Bayesian, machine learning, and foundational time series methods alongside our new hybrid approach. By comparing these methods, we provide insights into their strengths, weaknesses, and computational requirements. Our research fills a gap in forecasting contraceptive demand and offers a practical framework that combines algorithmic and human expertise. Our proposed model can also be generalized to other humanitarian contexts with similar data patterns.
+  
+keywords:
+  - family planning supply chain
+  - hybrid forecasting
+  - forecast distributions
+  - contraceptive demand
+  - forecast combination
+  
+bibliography: bibliography.bib
+
+execute:
+  echo: false
+  message: false
+  warning: false
+  cache: true
+pdf-engine: pdflatex
+prefer-html: true
+format:
+  html:
+    number-sections: true
+  docx:
+    number-sections: true
+  tandf-pdf:
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage{todonotes,mathtools,bm,amsmath,mathpazo}
+        \mathtoolsset{showonlyrefs}
+        \setlength{\parindent}{0cm}
+    journal:
+      #name: Journal of Service Research
+      #formatting: preprint
+      model: 3p
+      cite-style: authoryear
+---
+
+
+```{r}
+#| label: setup
+#| context: setup
+#| include: false
+
+library(tidyverse)
+library(fpp3)
+library(knitr)
+library(kableExtra)
+library(ggthemes)
+library(patchwork)
+library(scales)
+library(ggdist)
+library(tsutils)
+
+
+# Color blind color palettes
+options(
+  ggplot2.discrete.colour = c("#D55E00", "#0072B2", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#F0E442"),
+  ggplot2.discrete.fill = c("#D55E00", "#0072B2", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#F0E442")
+)
+# Few theme
+ggplot2::theme_set(ggthemes::theme_few())
+
+```
+
+```{r intro, child="01-introduction.qmd"}
+```
+
+```{r literature, child="02-literature.qmd"}
+```
+
+```{r literature, child="03-proposed_model.qmd"}
+```
+
+```{r experiment, child="04-experiment.qmd"}
+```
+
+```{r results, child="05-results.qmd"}
+```
+
+```{r discussion, child="06-discussion.qmd"}
+```
+
+```{r conclusion, child="07-conclusion.qmd"}
+```
+
+
+# Data availability statement {#reproducibility .unnumbered}
+
+The R and Python code, along with the data required to reproduce all results in this paper, will be made available in a GitHub repository upon acceptance of the paper.
+
+# Acknowledgements {#acknowledgements .unnumbered}
+
+We would like to thank Laila Akhlaghi from John Snow, Inc. for her advice and feedback.
+
+# Disclosure statement {.unnumbered}
+
+The authors report there are no competing interests to declare.
+
+# References {#references .unnumbered}
+
+::: {#refs}
+:::
+
+\pagebreak
+
+# Appendix {#appendix .unnumbered}
+
+## Appendix 1 {#appendix1 .appendix .unnumbered}
+
+```{r appendix1, child="08-appendix_fig.qmd"}
+```
+
+\pagebreak 
+
+## Appendix 2 {#appendix2 .appendix .unnumbered}
+
+```{r appendix2, child="08-appendix_tbl.qmd"}
+```
+

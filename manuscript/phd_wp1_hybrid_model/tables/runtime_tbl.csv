@@ -1,0 +1,20 @@
+Method,Mean MASE,Mean CRPS,Runtime per iteration  (Minutes),Runtime type
+RF,0.743,9.997,312.5,CPU
+Hybrid weighted averaging,0.775,9.868,205.9,CPU with 4 cores
+LGBM,0.833,10.131,153.5,CPU
+ML combined,0.847,10.286,202.83,CPU
+XGB,0.859,10.56,142.5,CPU
+TimeGPT reg,1.258,15.635,0.45,Colab T4 GPU
+MLR,1.269,12.611,10.27,CPU
+TimeGPT,1.292,15.831,0.23,Colab T4 GPU
+Chronos,1.305,15.018,30.08,Colab T4 GPU
+BSTS reg,1.327,15.342,47.23,CPU with 4 cores
+SBA,1.331,,18.23,CPU with 4 cores
+Moving average,1.373,15.701,5.19,CPU with 4 cores
+Statistical combined,1.378,16.045,19.99,CPU with 4 cores
+ETS,1.379,15.397,29.89,CPU with 4 cores
+ARIMA,1.386,15.703,27.32,CPU with 4 cores
+Lag Llama,1.483,15.84,39.39,Colab T4 GPU
+BSTS demo,1.521,17.064,55.73,CPU with 4 cores
+sNaive,1.603,17.511,17.56,CPU with 4 cores
+Hybrid bias adjustment,4.36,29.062,209.4,CPU with 4 cores

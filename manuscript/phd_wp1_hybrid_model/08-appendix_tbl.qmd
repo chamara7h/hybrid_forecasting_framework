@@ -1,0 +1,27 @@
+
+
+```{r}
+#| label: tbl-guide
+#| tbl-cap: "Guidelines for method selection in contraceptive demand forecasting."
+
+guide <- read.csv(here::here('manuscript/phd_wp1_hybrid_model/tables/guide_tbl.csv')) %>% 
+  janitor::clean_names() %>% 
+  rename(Method = method,
+         Strengths = strengths,
+         Limitations = limitations,
+         'Computational efficiency' = computational_efficiency,
+         'Suitable contexts' = suitable_contexts,
+         'Key assumptions' = key_assumptions)
+
+guide %>%
+  knitr::kable(booktabs = T, linesep = "") %>% 
+  kable_styling(latex_options = "scale_down", font_size = 7) %>% 
+  column_spec(1, "6em") %>% 
+  column_spec(2, "15em") %>% 
+  column_spec(3, "15em") %>% 
+  column_spec(4, "8em") %>%
+  column_spec(5, "18em") %>% 
+  column_spec(6, "18em") %>% 
+  landscape()
+
+```

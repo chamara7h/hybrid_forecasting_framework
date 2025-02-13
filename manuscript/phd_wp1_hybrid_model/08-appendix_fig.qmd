@@ -1,0 +1,189 @@
+
+
+```{r}
+#| include: false
+
+submission <- read.csv(here::here('manuscript/phd_wp1_hybrid_model/tables/submission_mase.csv'))
+
+point_accuracy <- read_rds(here::here('data/results/fc_cv_accuray.rds')) %>% 
+  filter(!is.na(mase)) %>% 
+  filter(model != 'hybrid_bias_series') %>% 
+  mutate(model = case_when(model == 'hybrid_bias_fh' ~ 'hybrid_bias_adjustment',
+                           model == 'hybrid_old_fh' ~ 'hybrid_weighted_averaging',
+                           .default = model)) %>% 
+  separate(id, into = c('id', 'horizon'), sep = '-')
+
+prob_accuracy <- read_rds(here::here('data/results/bs_cv_crps.rds')) %>% 
+  filter(!is.na(crps)) %>% 
+  filter(model != 'hybrid_bias_series') %>% 
+  mutate(model = case_when(model == 'hybrid_bias_fh' ~ 'hybrid_bias_adjustment',
+                           model == 'hybrid_old_fh' ~ 'hybrid_weighted_averaging',
+                           .default = model)) %>% 
+  separate(id, into = c('id', 'horizon'), sep = '-')
+
+# read data
+
+stock <- read.csv(here::here('data/tidy_data/stock_tsb_zero_remove.csv')) 
+
+# make the tsibble
+
+stock_tsb <- stock %>% 
+  mutate(yearmonth = yearmonth(yearmonth)) %>% 
+  as_tsibble(index = yearmonth, key = c(region, district, site_code, product_type, product_code))
+
+
+# creating training and test set
+
+stock_tsb_train <- stock_tsb %>% 
+  filter_index(. ~ '2019 Sep') 
+
+stock_tsb_test <- stock_tsb %>% 
+  filter_index('2019 Aug' ~ .) 
+
+
+# create tscv train data
+
+f_horizon = 3
+
+stock_train_tscv <- stock_tsb_train %>% 
+  stretch_tsibble(.init = (length(unique(stock_tsb_train$yearmonth)) - f_horizon + 1), .step = 1) %>% 
+  rename(horizon = .id) |> 
+  as_tibble() |> 
+  # group_by(id, origin) |> 
+  # mutate(horizon = row_number()) |> # creating the horizon
+  # ungroup() |>
+  mutate(unique_id = paste0(id, '-', horizon))
+
+```
+
+
+```{r}
+#| label: fig-mase_boxplot
+#| cache: true
+#| fig.align: center
+#| fig-cap: "The first panel shows the distribution of MASE values for forecasting methods across different horizons. The boxplots are arranged in order of the median MASE values. The second panel shows the distribution of CRPS values for forecasting methods across different horizons. Similarly, the boxplots are arranged in order of the median CRPS values."
+#| out.width: "90%"
+#| fig-width: 12
+#| fig-height: 12
+
+mase_h1_order <- point_accuracy %>% 
+  filter(horizon == 1) %>% 
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'bsts' ~ 'BSTS',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'croston' ~ 'SBA',
+                           model == 'lag_llama' ~ 'Lag llama',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'demographic' ~ 'Demographic',
+                           .default = model)) %>% 
+  group_by(model) %>% 
+  summarise(median_mase = median(mase), .groups = 'drop') %>% 
+  arrange(desc(median_mase)) %>% 
+  pull(model)
+
+p1 <- point_accuracy %>% 
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'bsts' ~ 'BSTS',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'croston' ~ 'SBA',
+                           model == 'lag_llama' ~ 'Lag llama',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'demographic' ~ 'Demographic',
+                           .default = 'other')) %>%
+  filter(model != 'other') %>% 
+  mutate(model = factor(model, levels = mase_h1_order)) %>%
+  ggplot(aes(y = model, x = mase))+
+  geom_boxplot(outliers = FALSE) +
+  ggthemes::theme_few() +
+  facet_grid(cols = vars(horizon), labeller = label_both) +
+  labs(x = "Method", y = "MASE") +
+  theme(axis.text.x = element_text(hjust=1))
+
+crps_h1_order <- prob_accuracy %>% 
+  filter(horizon == 1) %>% 
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'bsts' ~ 'BSTS',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'lag_llama' ~ 'Lag llama',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'demographic' ~ 'Demographic',
+                           .default = model)) %>% 
+  group_by(model) %>% 
+  summarise(median_crps = median(crps), .groups = 'drop') %>% 
+  arrange(desc(median_crps)) %>% 
+  pull(model)
+
+p2 <- prob_accuracy %>% 
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'bsts' ~ 'BSTS',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'lag_llama' ~ 'Lag llama',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'demographic' ~ 'Demographic',
+                           .default = 'other')) %>%
+  filter(model != 'other') %>% 
+  mutate(model = factor(model, levels = crps_h1_order)) %>%
+  ggplot(aes(y = model, x = crps))+
+  geom_boxplot(outliers = FALSE) +
+  facet_grid(cols = vars(horizon), labeller = label_both) +
+  labs(y = "Method", x = "CRPS") +
+  ggthemes::theme_few() +
+  theme(axis.text.x = element_text(hjust=1))
+
+p1/
+  p2
+
+```
+

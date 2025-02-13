@@ -1,0 +1,519 @@
+# Analysis and results {#sec-results}
+
+```{r}
+#| include: false
+
+submission <- read.csv(here::here('manuscript/phd_wp1_hybrid_model/tables/submission_mase.csv'))
+
+point_accuracy <- read_rds(here::here('data/results/fc_cv_accuray.rds')) %>% 
+  filter(!is.na(mase)) %>% 
+  filter(model != 'hybrid_bias_series') %>% 
+  mutate(model = case_when(model == 'hybrid_bias_fh' ~ 'hybrid_bias_adjustment',
+                           model == 'hybrid_old_fh' ~ 'hybrid_weighted_averaging',
+                           .default = model)) %>% 
+  separate(id, into = c('id', 'horizon'), sep = '-')
+
+prob_accuracy <- read_rds(here::here('data/results/bs_cv_crps.rds')) %>% 
+  filter(!is.na(crps)) %>% 
+  filter(model != 'hybrid_bias_series') %>% 
+  mutate(model = case_when(model == 'hybrid_bias_fh' ~ 'hybrid_bias_adjustment',
+                           model == 'hybrid_old_fh' ~ 'hybrid_weighted_averaging',
+                           .default = model)) %>% 
+  separate(id, into = c('id', 'horizon'), sep = '-')
+
+# read data
+
+stock <- read.csv(here::here('data/tidy_data/stock_tsb_zero_remove.csv')) 
+
+# make the tsibble
+
+stock_tsb <- stock %>% 
+  mutate(yearmonth = yearmonth(yearmonth)) %>% 
+  as_tsibble(index = yearmonth, key = c(region, district, site_code, product_type, product_code))
+
+
+# creating training and test set
+
+stock_tsb_train <- stock_tsb %>% 
+  filter_index(. ~ '2019 Sep') 
+
+stock_tsb_test <- stock_tsb %>% 
+  filter_index('2019 Aug' ~ .) 
+
+
+# create tscv train data
+
+f_horizon = 3
+
+stock_train_tscv <- stock_tsb_train %>% 
+  stretch_tsibble(.init = (length(unique(stock_tsb_train$yearmonth)) - f_horizon + 1), .step = 1) %>% 
+  rename(horizon = .id) |> 
+  as_tibble() |> 
+  # group_by(id, origin) |> 
+  # mutate(horizon = row_number()) |> # creating the horizon
+  # ungroup() |>
+  mutate(unique_id = paste0(id, '-', horizon))
+
+```
+
+First, we evaluate the overall point forecast performance of the forecasting methods, including the proposed method, using the MASE. Additionally, we compare the overall performance of our methods against the top 10 submissions from the USAID competition. Second, we assess the overall performance of the probabilistic forecasts of our methods using the CRPS. After completing these evaluations, we conduct a Nemenyi test at the 5% significance level to determine any significant differences in performance between the methods.
+
+Next, we evaluate both the point and probabilistic forecast performances across forecast horizons, providing a clearer picture of multi-step errors in the methods. Following this, we compare the forecast performances in relation to computational time, highlighting the trade-offs between accuracy and efficiency.
+
+## Overal performance evaluation of point and probabilistic forecasts[^04-results-1]
+
+[^04-results-1]: Overall performance refers to the mean and median forecast performance of methods calculated on the test sets at forecast horizons $h=1,2,3$ months, with time series cross-validation applied to the target variable.
+
+The overall point forecast performance of each method is presented in @tbl-mase, showing both mean and median MASE values, and ordered by mean MASE. The table clearly indicates that all time series methods underperform compared to ML methods. In fact, the top five methods are ML-based. The top-performing method is the RF method, with the lowest mean MASE of 0.743. Notably, the Hybrid Weighted Average method is the second-best performer, with a mean MASE of 0.775.
+
+However, the Hybrid Bias Adjustment method performs significantly worse compared to all other methods, except for the Demographic method, which shows the poorest performance among all methods. Interestingly, the SBA method outperforms all other time series methods, but neither the Statistical Combined method nor the ML Combined method surpass other methods within their respective categories as initially expected. Nevertheless, it is notable that both combined methods improve their performance compared to the lowest-performing methods within their category.
+
+On the other hand, the BSTS method shows improved performance when it incorporates time series-based predictors (e.g., lags, rolling statistics), categorical features (e.g., region, district), and date features, compared to when it uses demographic-based predictors (e.g., women population, mCPR, women age group). Among the foundational methods, TimeGPT with regressors outperforms all other foundational methods, whereas without regressors, the performance of Chronos and TimeGPT is quite similar. However, the performance of Lag Llama differs notably from both Chronos and TimeGPT. Finally, regarding the competition submissions, none of them outperform the top five methods in our analysis.
+
+```{r}
+#| label: tbl-mase
+#| tbl-cap: "Overall point forecast accuracy in mean MASE and median MASE (CS refers to competition submission)."
+
+# Set minimum in column to bold
+
+set_to_bold <- function(table) {
+  for (i in 2:3) {
+    best <- which.min(table[[i]])
+    table[[i]] <- sprintf(table[[i]], fmt = "%1.3f")
+    table[[i]][best] <- paste0("\\textbf{", table[[i]][best], "}")
+  }
+  return(table)
+}
+
+
+point_accuracy %>% 
+  group_by(model) %>% 
+  summarise(mean_mase = round(mean(mase), 3), median_mase = round(median(mase), 3), .groups = 'drop') %>% 
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'demographic' ~ 'Demographic',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'bsts' ~ 'BSTS reg',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'croston' ~ 'SBA',
+                            model == 'lag_llama' ~ 'Lag Llama',
+                           .default = 'others')) %>% 
+  filter(model != 'others') %>% 
+  bind_rows(submission) %>% 
+  arrange(mean_mase) %>%
+  rename('Method' = model ,'Mean MASE' = mean_mase, 'Median MASE' = median_mase) %>%
+  # set_to_bold() %>%
+  knitr::kable(format = "latex", booktabs = T, linesep = "") %>% 
+  kable_styling(latex_options = "scale_down", font_size = 10) %>% 
+  column_spec(1, "15em") %>% 
+  column_spec(2, "8em") %>% 
+  column_spec(3, "8em")
+
+```
+
+However, we cannot draw concrete conclusions about the point forecast performance of methods solely based on mean MASE values. Therefore, we also conducted the Nemenyi test at the 5% significance level on MASE values for the forecasting methods. This test allowed us to calculate the average ranks of the forecasting methods and assess whether their performances are significantly different from one another. @fig-mase_nemenyi shows the results of the Nemenyi test.
+
+In brief, if there is no overlap in the confidence intervals between two methods, it indicates that their performances are significantly different. The grey area represents the 95% confidence interval for the top-ranking method. Methods whose intervals do not overlap with this grey area are considered significantly underperforming compared to the best-performing method, and vice versa.
+
+@fig-mase_nemenyi demonstrates that the RF method is the best-performing method confirming our previous finding, and there is no significant difference between the top three ranked methods, which include our proposed Hybrid Weighted Average method and the LGBM method. It is noteworthy that the average rank of the Hybrid Bias Adjustment method has improved, suggesting that it may perform adequately across a majority of the time series. Additionally, it is significant that the TimeGPT with Regressors method outperforms all other foundational time series methods, which were trained as univariate methods.
+
+```{r}
+#| label: fig-mase_nemenyi
+#| cache: true
+#| fig.align: center
+#| fig-cap: "Average ranks and 95% confidence intervals for all the forecasting methods using the Nemenyi test on MASE values."
+#| out.width: "80%"
+#| fig-width: 8
+#| fig-height: 8
+
+mase_overall <- point_accuracy %>% 
+  group_by(id, model) %>% 
+  summarise(mase = mean(mase), .groups = 'drop') %>% 
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'demographic' ~ 'Demographic',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'bsts' ~ 'BSTS reg',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'lag_llama' ~ 'Lag Llama',
+                           model == 'croston' ~ 'SBA',
+                           model == 'cs_1' ~ 'CS 01',
+                           model == 'cs_2' ~ 'CS 02',
+                           model == 'cs_3' ~ 'CS 03',
+                           model == 'cs_4' ~ 'CS 04',
+                           model == 'cs_5' ~ 'CS 05',
+                           model == 'cs_6' ~ 'CS 06',
+                           model == 'cs_7' ~ 'CS 07',
+                           model == 'cs_8' ~ 'CS 08',
+                           model == 'cs_9' ~ 'CS 09',
+                           model == 'cs_10' ~ 'CS 10')) %>% 
+  pivot_wider(id_cols = 'id', names_from = 'model', values_from = 'mase') %>% 
+  select(-id)
+
+# Adjust plot margins
+par(mar = c(5, 5, 3, 1))  # Set the margins (bottom, left, top, right)
+p1 <- nemenyi(mase_overall,conf.level=0.95,plottype="vmcb", main = "")
+
+```
+
+Next, we turn our attention to evaluating the performance of probabilistic forecasts. @tbl-crps presents the overall performance evaluations of probabilistic forecasts using both the mean and median CRPS values, ordered by mean CRPS. The proposed Hybrid Weighted Averaging method is the top performer, with a mean CRPS of 9.868.  The RF method ranks second, with a mean CRPS of 9.997. As in the point forecast analysis, all the top five methods are ML based, and the time series methods generally underperform in comparison.
+
+In the BSTS method, we again observe improved performance when time series-based, categorical, and date features are included as regressors. The Statistical Combined and ML Combined methods show performance similar to what was seen in the point forecast analysis.
+
+Notably, Chronos performs better than all time series, Bayesian, and other foundational methods. Moreover, ETS outperforms all time series methods but shows poor performance compared to ML based methods. Lastly, the Hybrid Bias Adjustment method delivers the worst performance among all forecasting methods, reinforcing the trend observed in the point forecast evaluation.
+
+```{r}
+#| label: tbl-crps
+#| tbl-cap: "Overall probabilistic forecast accuracy in mean CRPS and median CRPS."
+
+prob_accuracy %>% 
+  group_by(model) %>% 
+  summarise(mean_crps = round(mean(crps), 3), median_crps = round(median(crps), 3)) %>%
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'demographic' ~ 'Demographic',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'bsts' ~ 'BSTS reg',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'lag_llama' ~ 'Lag Llama')) %>%
+  arrange(mean_crps) %>% 
+  rename('Method' = model, 'Mean CRPS' = mean_crps, 'Median CRPS' = median_crps) |> 
+  # set_to_bold() %>%
+  knitr::kable(booktabs = T, linesep = "") %>% 
+  kable_styling(latex_options = "scale_down", font_size = 10) %>% 
+  column_spec(1, "15em") %>% 
+  column_spec(2, "8em") %>% 
+  column_spec(3, "8em")
+
+```
+
+Similar to the point forecast analysis, @fig-crps_nemenyi demonstrates that the top three ranked methods are not significantly different, with RF as the top-ranked method, although the proposed Hybrid Weighted Average method has the lowest mean CRPS. This may indicate that RF performs comparably in minimizing the loss function across series, while the Hybrid Weighted Average method may prioritize stable time series without significant deviations (see @sec-model). Additionally, the top three ranked methods significantly outperform all other forecasting methods in terms of probabilistic forecasting.
+
+Noticeably, the Hybrid Bias Adjustment method shows a significant improvement in its average rank, ranking seventh, right after the ML and Hybrid Weighted Averaging methods. The Chronos method is also ranked higher than the time series, BSTS, and other foundational methods. Time series methods remain clustered in the lower rank range, while the BSTS reg method shows an improvement in rank compared to the BSTS demo method. Among the foundational methods, Lag Llama has the lowest rank, further confirming its relatively weak performance compared to other foundational and ML based methods.
+
+
+```{r}
+#| label: fig-crps_nemenyi
+#| cache: true
+#| fig.align: center
+#| fig-cap: "Average ranks and 95% confidence intervals for all the forecasting methods using the Nemenyi test on CRPS values."
+#| out.width: "80%"
+#| fig-width: 8
+#| fig-height: 8
+
+crps_overall <- prob_accuracy %>% 
+  group_by(id, model) %>% 
+  summarise(crps = mean(crps), .groups = 'drop') %>% 
+  mutate(model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'xgb' ~ 'XGB', 
+                           model == 'ml_ensemble' ~ 'ML combined', 
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'demographic' ~ 'Demographic',
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'moving_average' ~ 'Moving average',
+                           model == 'arima' ~ 'ARIMA',
+                           model == 'ets' ~ 'ETS',
+                           model == 'mlr' ~ 'MLR',
+                           model == 'bsts' ~ 'BSTS reg',
+                           model == 'bsts_demo' ~ 'BSTS demo',
+                           model == 'uni_ensemble' ~ 'Statistical combined',
+                           model == 'chronos' ~ 'Chronos',
+                           model == 'timegpt' ~ 'TimeGPT',
+                           model == 'timegpt_reg' ~ 'TimeGPT reg',
+                           model == 'lag_llama' ~ 'Lag Llama')) %>% 
+  pivot_wider(id_cols = 'id', names_from = 'model', values_from = 'crps') %>% 
+  select(-id)
+
+# Adjust plot margins
+par(mar = c(5, 5, 3, 1))  # Set the margins (bottom, left, top, right)
+p2 <- nemenyi(crps_overall,conf.level=0.95,plottype="vmcb", main = "")
+
+```
+
+## Point and probabilistic forecast performances across forecast horizons
+
+We also analyze the forecast performances over different horizons to evaluate how the methods perform over time. The forecast horizons range from month 1 to month 3, corresponding to the upcoming planning period used by planners for decision-making. First, we examine the error distribution across all methods. The RF method consistently shows the highest point forecast accuracy across all three horizons. Additionally, the top five methods, including the proposed hybrid weighted averaging method, maintain consistent performance throughout the forecast periods.
+
+In terms of probabilistic forecast accuracy, similar patterns are observed across different methods. While these plots offer a high-level overview of error metric distributions (see @fig-mase_boxplot in **Appendix 1**), they do not provide detailed insights into the differences between the top- and low-ranking methods. To gain a clearer understanding of the error metrics distribution, we plot density distributions, focusing on the top three and bottom three forecasting methods for both point forecasts and probabilistic forecasts.
+
+@fig-mase_density and @fig-crps_density demonstrate that both the point and probabilistic forecast accuracy densities for the top three methods exhibit a narrower spread compared to the bottom three methods. This indicates that the forecast errors for these top methods are less variable and more consistently close to the actual values across different time series than those of the bottom three methods. The densities of all other methods, shown in grey, fall between those of the top and bottom methods, offering broader comparative context. Moreover, the plots show that the top methods maintain consistent performance across forecast horizons. However, it is noteworthy that the right tail of the density curves for RF and LGBM becomes more volatile as forecast errors increase, particularly at forecast horizon 3. This volatility may suggest that, while these top two methods often deliver consistently strong performance, there remain some uncertainties with specific time series that these methods are unable to capture effectively. In contrast, the Hybrid Weighted Averaging method shows a smoother tail, reflecting that it captures this variability more effectively compared to RF and LGBM.
+
+```{r}
+#| label: fig-mase_density
+#| cache: true
+#| fig.align: center
+#| fig-cap: "The distribution of MASE values for the top three and bottom three forecasting methods across the horizons is presented. The methods are ranked based on their mean MASE values, with the top and bottom methods selected accordingly. Grey lines represent the distribution of MASE values for all other methods, providing a comparative context."
+#| out.width: "80%"
+#| fig-width: 8
+#| fig-height: 8
+
+
+# define horizon level as factors
+
+point_accuracy <- point_accuracy %>% 
+  mutate(horizon = factor(horizon, levels = sort(unique(horizon))))
+
+
+# List of specific models to highlight
+
+filtered_models <- c('demographic', 'hybrid_weighted_averaging', 'hybrid_bias_adjustment', 'lgbm', 'rf', 'snaive')
+
+
+# Background density plot for all models in grey
+
+background_plot_mase <- point_accuracy %>% 
+  filter(!model %in% filtered_models, mase < 5) %>%  # No filtering of models, include all
+  rename(Model = model) %>% 
+  ggplot(aes(x = mase, group = Model)) +  # Use group to plot each model separately
+  geom_density(colour = 'azure3', linewidth = 0.5)
+
+
+#Main plot with specific models highlighted
+
+main_plot_mase <- point_accuracy %>% 
+  filter(mase < 5) %>% 
+  mutate(model = ifelse(model %in% filtered_models, model, 'other_models'),
+         model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'demographic' ~ 'Demographic',
+                           model == 'other_models' ~ 'Other models'),
+         model = factor(model, levels = c('RF', 'LGBM', 'Hybrid weighted averaging', 'sNaive', 'Hybrid bias adjustment', 'Demographic', 'Other models'))) %>%
+  rename(Model = model) %>% 
+  ggplot(aes(x = mase, colour = Model)) +
+  geom_density()
+
+
+# Combine the background and main plots
+
+final_plot_mase <- background_plot_mase +
+  geom_density(data = main_plot_mase$data, aes(x = mase, colour = Model, linewidth = Model)) +
+  facet_grid(rows = vars(horizon), labeller = label_both) +  # Add "Forecast Horizon" label
+  scale_color_manual(
+    values = c('Demographic' =  '#d62728',
+               'Hybrid bias adjustment' = '#D55E00',            
+               'Hybrid weighted averaging' = '#0072B2',
+               'sNaive' = '#E69F00',
+               'RF' = '#009E73', 
+               'LGBM' = '#CC79A7',
+               'Other models' = 'azure3')
+  ) +
+  scale_linewidth_manual(
+    values = c('Demographic' = 1,
+               'Hybrid bias adjustment' = 1,
+               'Hybrid weighted averaging' = 1,
+               'LGBM' = 1,
+               'RF' = 1,
+               'sNaive' = 1,
+               'ML ensemble' = 1,
+               'Other models' = 0.5)
+  ) +
+  theme_minimal() +
+  labs(
+    # title = "MASE Density by Forecast Horizon and Model",
+    x = "MASE",
+    y = "Density",
+    colour = 'Method',
+    linewidth = 'Method'
+  )
+
+final_plot_mase
+
+```
+
+```{r}
+#| label: fig-crps_density
+#| cache: true
+#| fig.align: center
+#| fig-cap: "The distribution of CRPS values for the top three and bottom three forecasting methods across the horizons is presented. The methods are ranked based on their mean CRPS values, with the top and bottom methods selected accordingly. Grey lines represent the distribution of CRPS values for all other methods, providing a comparative context."
+#| out.width: "80%"
+#| fig-width: 8
+#| fig-height: 8
+
+
+# define horizon level as factors
+
+prob_accuracy <- prob_accuracy %>% 
+  mutate(horizon = factor(horizon, levels = sort(unique(horizon))))
+
+
+# List of specific models to highlight
+
+filtered_models <- c('bsts_demo', 'hybrid_weighted_averaging', 'hybrid_bias_adjustment', 'lgbm', 'rf', 'snaive')
+
+
+# Background density plot for all models in grey
+
+background_plot_crps <- prob_accuracy %>% 
+  filter(!model %in% filtered_models, crps < 25) %>%  # No filtering of models, include all
+  rename(Model = model) %>% 
+  ggplot(aes(x = crps, group = Model)) +  # Use group to plot each model separately
+  geom_density(colour = 'azure3', linewidth = 0.5)
+
+
+#Main plot with specific models highlighted
+
+main_plot_crps <- prob_accuracy %>% 
+  filter(crps < 25) %>% 
+  mutate(model = ifelse(model %in% filtered_models, model, 'other_models'),
+         model = case_when(model == 'lgbm' ~ 'LGBM',
+                           model == 'rf' ~ 'RF', 
+                           model == 'snaive' ~ 'sNaive',
+                           model == 'hybrid_weighted_averaging' ~ 'Hybrid weighted averaging', 
+                           model == 'hybrid_bias_adjustment' ~ 'Hybrid bias adjustment',
+                           model == 'bsts_demo' ~ 'BSTS Demo',
+                           model == 'other_models' ~ 'Other models'),
+         model = factor(model, levels = c('RF', 'LGBM', 'Hybrid weighted averaging', 'Hybrid bias adjustment', 'sNaive', 'BSTS Demo', 'Other models'))) %>%
+  rename(Model = model) %>% 
+  ggplot(aes(x = crps, colour = Model)) +
+  geom_density()
+
+
+# Combine the background and main plots
+
+final_plot_crps <- background_plot_crps +
+  geom_density(data = main_plot_crps$data, aes(x = crps, colour = Model, linewidth = Model)) +
+  facet_grid(rows = vars(horizon), labeller = label_both) +  # Add "Forecast Horizon" label
+  scale_color_manual(
+    values = c('BSTS Demo' =  '#d62728',
+               'Hybrid bias adjustment' = '#D55E00',            
+               'Hybrid weighted averaging' = '#0072B2',
+               'sNaive' = '#E69F00',
+               'RF' = '#009E73', 
+               'LGBM' = '#CC79A7',
+               'Other models' = 'azure3')
+  ) +
+  scale_linewidth_manual(
+    values = c('BSTS Demo' = 1,
+               'Hybrid bias adjustment' = 1,
+               'Hybrid weighted averaging' = 1,
+               'LGBM' = 1,
+               'RF' = 1,
+               'sNaive' = 1,
+               'Other models' = 0.5)
+  ) +
+  theme_minimal() +
+  labs(
+    x = "CRPS",
+    y = "Density",
+    colour = 'Method',
+    linewidth = 'Method'
+  )
+
+final_plot_crps
+
+```
+
+## Forecast performance and computational efficiency
+
+We now focus on the computational efficiency of the forecasting methods. In this study, computational efficiency is defined as the total runtime required for one iteration on the first rolling origin. The runtime was calculated based on this definition, and each method was retrained during each iteration. For this analysis, we focused solely on methods that generate both point and probabilistic forecasts from our candidate methods.
+
+We used two environments: an R Studio local implementation on a device with an 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40 GHz and 8 GB RAM, as well as Google Colab on both CPU and T4 GPU devices. To compute the runtime for combined statistical and ML methods, we averaged the runtime of the respective underlying methods. For the proposed hybrid methods, we added the runtime of the underlying methods to the time taken by the proposed method to combine the forecasts.
+
+@tbl-runtime shows that, although the RF is the best ranked method in Nemenyi test, it requires significantly more runtime compared to the other forecasting methods. On the other hand, TimeGPT stands out as the fastest method, outperforming all other methods in terms of runtime while still providing reasonable forecast accuracy. This is a notable exception, as it balances performance and computational efficiency well.
+
+However, it is important to note that ML methods were trained using a normal CPU and one core due to technical challenges in the setup. With access to GPU devices or CPUs with multiple cores, we could likely improve the computational performance of these ML methods.
+
+@fig-runtime shows a clear relationship between runtime and accuracy improvement. Most of the top-performing methods fall into the moderate runtime category including the Hybrid Weighted Average method, with RF (the top ranked) being the slowest method. Interestingly, the Hybrid Bias Adjustment method also falls into the moderate runtime category but shows a relatively high accuracy error. However, the runtime of hybrid methods largely depends on the underlying methods selected for combination.
+
+From a practical perspective, choosing the right method should balance both performance and runtime. It is a tradeoff between the extra computational cost incurred by more sophisticated methods that can handle uncertainties and the lower cost and simplicity of standard time series methods.
+
+```{r}
+#| label: tbl-runtime
+#| tbl-cap: "Forecast performance and computational efficiency for each forecast method are ordered based on the mean MASE."
+
+runtime <- read.csv(here::here('manuscript/phd_wp1_hybrid_model/tables/runtime_tbl.csv')) %>% 
+  janitor::clean_names() %>% 
+  mutate(category = cut(runtime_per_iteration_minutes,
+                        breaks = c(-Inf, 50, 100, Inf), # Adjust the breaks according to your data
+                        labels = c("low", "medium", "high"))) %>% 
+  mutate(mean_crps = as.character(mean_crps),
+         mean_crps = if_else(is.na(mean_crps), c("-"), mean_crps)) |> 
+  rename(Method = method,
+         'Mean MASE' = mean_mase,
+         'Mean CRPS' = mean_crps,
+         'Runtime (Minutes)' = runtime_per_iteration_minutes,
+         'Runtime type' = runtime_type)
+  
+
+runtime %>%
+  select(-category) |> 
+  knitr::kable(format = "latex", booktabs = T, linesep = "") %>% 
+  kable_styling(latex_options = "scale_down", font_size = 8) %>% 
+  column_spec(1, "14em") %>% 
+  column_spec(2, "6em") %>% 
+  column_spec(3, "6em") %>% 
+  column_spec(4, "10em") %>%
+  column_spec(5, "10em")
+
+```
+
+```{r}
+#| label: fig-runtime
+#| cache: true
+#| fig.align: center
+#| fig-cap: "Runtime vs. forecast performance (The X-axis shows the runtime speed for each method as fast, moderate, or slow)."
+#| out.width: "70%"
+#| fig-width: 8
+#| fig-height: 8
+
+runtime %>%
+  select(-'Runtime type') %>% 
+  rename(MASE = 'Mean MASE',
+         CRPS = 'Mean CRPS',
+         Runtime = 'Runtime (Minutes)') %>% 
+  mutate(CRPS = as.numeric(CRPS)) |> 
+  pivot_longer(cols = c(MASE, CRPS), names_to = 'Measure') %>% 
+  ggplot(aes(x=Runtime, y=value, shape=Method)) +
+  geom_point(position = "jitter", size=2) +
+  scale_shape_manual(values = seq(0,18,1)) +
+  scale_x_continuous(breaks = c(50,150,250) ,
+                     labels = c("Fast","Moderate","Slow")) +
+  facet_wrap(vars(Measure), ncol = 1, scales = "free",strip.position="left")+
+  theme_few()+
+  labs(x="Speed", y = 'Error metric')+
+  theme(axis.ticks.x = element_blank(),
+        legend.title = element_text(face = "bold"),
+        )
+
+```
