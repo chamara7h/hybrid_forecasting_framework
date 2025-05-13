@@ -122,7 +122,7 @@ p1 <- point_accuracy %>%
   geom_boxplot(outliers = FALSE) +
   ggthemes::theme_few() +
   facet_grid(cols = vars(horizon), labeller = label_both) +
-  labs(x = "Method", y = "MASE") +
+  labs(x = "MASE", y = "Method") +
   theme(axis.text.x = element_text(hjust=1))
 
 crps_h1_order <- prob_accuracy %>% 

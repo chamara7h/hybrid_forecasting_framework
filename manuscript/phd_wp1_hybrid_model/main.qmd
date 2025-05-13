@@ -40,14 +40,14 @@ author:
           country: United Kingdom
           postal-code: CF24 4AG
           
-  - name: Glenn Milano
-    email: gmilano@usaid.gov
+  - name: Glenn R Milano
+    email: glenn.milano@gmail.com
     affiliations:
-        - id: usaid
-          name: United States Agency for International Development
-          department: Bureau for Global Health
-          country: United States
-          postal-code: 20523
+      - id: usaid
+        name: United States Agency for International Development
+        department: Bureau for Global Health
+        country: United States
+        postal-code: 20523
           
 
 abstract: | 
@@ -74,7 +74,7 @@ format:
     number-sections: true
   docx:
     number-sections: true
-  tandf-pdf:
+  elsevier-pdf:
     keep-tex: true
     include-in-header:
       text: |
@@ -82,7 +82,7 @@ format:
         \mathtoolsset{showonlyrefs}
         \setlength{\parindent}{0cm}
     journal:
-      #name: Journal of Service Research
+      name: International Journal of Production Research
       #formatting: preprint
       model: 3p
       cite-style: authoryear
@@ -103,7 +103,11 @@ library(patchwork)
 library(scales)
 library(ggdist)
 library(tsutils)
+library(grid)
+library(showtext)
 
+font_add_google("Assistant", "C:/Windows/Fonts/Assistant-Regular.ttf")
+showtext_auto()
 
 # Color blind color palettes
 options(
@@ -139,11 +143,11 @@ ggplot2::theme_set(ggthemes::theme_few())
 
 # Data availability statement {#reproducibility .unnumbered}
 
-The R and Python code, along with the data required to reproduce all results in this paper, will be made available in a GitHub repository upon acceptance of the paper.
+All materials required to reproduce this paper are openly available at [https://github.com/chamara7h/hybrid_forecasting_framework](https://github.com/chamara7h/hybrid_forecasting_framework). The repository includes the raw data, R and Python scripts used in the experiments results reported in the paper, and the Quarto files for generating the manuscript. Full instructions for replication are also provided in the repository.
 
 # Acknowledgements {#acknowledgements .unnumbered}
 
-We would like to thank Laila Akhlaghi from John Snow, Inc. for her advice and feedback.
+This research is supported by the Welsh Graduate School for the Social Sciences (WGSSS) through a fully funded PhD studentship. More information about the fellowship and project is available at [https://wgsss.ac.uk/profile/harsha-ruwan-chamara-halgamuwe-hewage/](https://wgsss.ac.uk/profile/harsha-ruwan-chamara-halgamuwe-hewage/). Moreover, we would like to thank Laila Akhlaghi from John Snow, Inc., for her invaluable insights and guidance throughout this research process. Her expertise has significantly enhanced the quality and depth of our findings, ensuring that our work will contribute meaningfully to the field.
 
 # Disclosure statement {.unnumbered}
 

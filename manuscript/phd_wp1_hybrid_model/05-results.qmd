@@ -133,7 +133,7 @@ In brief, if there is no overlap in the confidence intervals between two methods
 #| label: fig-mase_nemenyi
 #| cache: true
 #| fig.align: center
-#| fig-cap: "Average ranks and 95% confidence intervals for all the forecasting methods using the Nemenyi test on MASE values."
+#| fig-cap: "Average ranks of forecasting methods with 95% confidence intervals based on the Nemenyi test for MASE values. Lower ranks indicate better forecast performance."
 #| out.width: "80%"
 #| fig-width: 8
 #| fig-height: 8
@@ -175,7 +175,7 @@ mase_overall <- point_accuracy %>%
   select(-id)
 
 # Adjust plot margins
-par(mar = c(5, 5, 3, 1))  # Set the margins (bottom, left, top, right)
+par(mar = c(5, 5, 3, 1), family = "Assistant")  # Set the margins (bottom, left, top, right)
 p1 <- nemenyi(mase_overall,conf.level=0.95,plottype="vmcb", main = "")
 
 ```
@@ -213,7 +213,7 @@ prob_accuracy %>%
                            model == 'timegpt_reg' ~ 'TimeGPT reg',
                            model == 'lag_llama' ~ 'Lag Llama')) %>%
   arrange(mean_crps) %>% 
-  rename('Method' = model, 'Mean CRPS' = mean_crps, 'Median CRPS' = median_crps) |> 
+  rename('Method' = model, 'Mean CRPS' = mean_crps, 'Median CRPS' = median_crps) %>%
   # set_to_bold() %>%
   knitr::kable(booktabs = T, linesep = "") %>% 
   kable_styling(latex_options = "scale_down", font_size = 10) %>% 
@@ -232,7 +232,7 @@ Noticeably, the Hybrid Bias Adjustment method shows a significant improvement in
 #| label: fig-crps_nemenyi
 #| cache: true
 #| fig.align: center
-#| fig-cap: "Average ranks and 95% confidence intervals for all the forecasting methods using the Nemenyi test on CRPS values."
+#| fig-cap: "Average ranks of forecasting methods with 95% confidence intervals based on the Nemenyi test for CRPS values. Lower ranks indicate better forecast performance."
 #| out.width: "80%"
 #| fig-width: 8
 #| fig-height: 8
@@ -263,7 +263,7 @@ crps_overall <- prob_accuracy %>%
   select(-id)
 
 # Adjust plot margins
-par(mar = c(5, 5, 3, 1))  # Set the margins (bottom, left, top, right)
+par(mar = c(5, 5, 3, 1), family = "Assistant")  # Set the margins (bottom, left, top, right)
 p2 <- nemenyi(crps_overall,conf.level=0.95,plottype="vmcb", main = "")
 
 ```
@@ -348,7 +348,7 @@ final_plot_mase <- background_plot_mase +
                'ML ensemble' = 1,
                'Other models' = 0.5)
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = "Assistant", base_size = 12) +
   labs(
     # title = "MASE Density by Forecast Horizon and Model",
     x = "MASE",
@@ -432,7 +432,7 @@ final_plot_crps <- background_plot_crps +
                'sNaive' = 1,
                'Other models' = 0.5)
   ) +
-  theme_minimal() +
+  theme_minimal(base_family = "Assistant", base_size = 12) +
   labs(
     x = "CRPS",
     y = "Density",
@@ -510,7 +510,7 @@ runtime %>%
   scale_x_continuous(breaks = c(50,150,250) ,
                      labels = c("Fast","Moderate","Slow")) +
   facet_wrap(vars(Measure), ncol = 1, scales = "free",strip.position="left")+
-  theme_few()+
+  theme_few(base_family = "Assistant", base_size = 12)+
   labs(x="Speed", y = 'Error metric')+
   theme(axis.ticks.x = element_blank(),
         legend.title = element_text(face = "bold"),

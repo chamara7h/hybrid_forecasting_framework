@@ -56,7 +56,7 @@ total <- stock_tsb_zero_remove %>%
   summarise(stock_distributed = sum(stock_distributed)) %>%
   autoplot(stock_distributed) +
   labs(x = "", y = "Stock Distributed") +
-  ggthemes::theme_few() +
+  ggthemes::theme_few(base_family = "Assistant", base_size = 12) +
   no_x_axis
 
 # region
@@ -71,7 +71,7 @@ region <- stock_tsb_zero_remove  %>%
   ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(region))) +
   geom_line() +
   labs(y = "Stock Distributed", color = "Region") +
-  ggthemes::theme_few() +
+  ggthemes::theme_few(base_family = "Assistant", base_size = 12) +
   ggthemes::scale_color_colorblind() +
   no_x_axis
 
@@ -87,7 +87,7 @@ district <- stock_tsb_zero_remove  %>%
   ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(district))) +
   geom_line() +
   labs(y = "Stock Distributed", color = "District") +
-  ggthemes::theme_few() +
+  ggthemes::theme_few(base_family = "Assistant", base_size = 12) +
   ggthemes::scale_color_colorblind() +
   no_x_axis
 
@@ -105,7 +105,7 @@ site_p <- stock_tsb_zero_remove %>%
   ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(site_code))) +
   geom_line() +
   labs(y = "Stock Distributed", color = "Site Code") +
-  ggthemes::theme_few() +
+  ggthemes::theme_few(base_family = "Assistant", base_size = 12) +
   ggthemes::scale_color_colorblind() +
   no_x_axis
 
@@ -122,14 +122,31 @@ product_p <- stock_tsb_zero_remove  %>%
   ggplot(aes(x = yearmonth, y = stock_distributed, color = factor(product_code))) +
   geom_line() +
   labs(x = "Month", y = "Stock Distributed", color = "Product Code") +
-  ggthemes::theme_few() +
+  ggthemes::theme_few(base_family = "Assistant", base_size = 12) +
   ggthemes::scale_color_colorblind()
 
 
-total/
-  region/
-  district/
-  site_p/
+common_legend_theme <- theme(
+  legend.position     = "right",    
+  legend.justification= "left",      
+  legend.box.just     = "left",      
+  legend.title.align  = 0,           
+  legend.text.align   = 0,           
+  legend.key.width    = unit(1.2, "cm"),    
+  legend.spacing.x    = unit(0.4, "cm")    
+)
+
+total     <- total     + common_legend_theme
+region    <- region    + common_legend_theme
+district  <- district  + common_legend_theme
+site_p    <- site_p    + common_legend_theme
+product_p <- product_p + common_legend_theme
+
+
+total /
+  region /
+  district /
+  site_p /
   product_p
 
 ```
@@ -137,23 +154,10 @@ total/
 ```{r}
 #| label: fig-tsplot2
 #| cache: true
-#| out.width: "80%"
+#| out.width: "100%"
 #| fig-width: 10
 #| fig-height: 6
-#| fig-cap: "Time series of contraceptive product stock distributed in selected sites for specific products(Jan 2016 – Dec 2019). To ensure clarity and prevent overplotting, only five of the products are displayed. These series were selected randomly and represent characteristic patterns at this level."
-
-# id_code <- c("C2062AS27000", "C2015AS27132", "C4026AS27133", "C4061AS27138", "C1101AS27137")
-# 
-# stock_tsb_zero_remove %>% filter_index(. ~ "2019 Sep") %>%
-#   filter(id %in% id_code) %>%
-#   group_by(site_code, product_code) %>% 
-#   ggplot(aes(x = yearmonth, y = stock_distributed, color = product_code, group = product_code)) +
-#   geom_line() +
-#   labs(x = "Month", y = "Stock Distributed", color = "Product Code") +
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-#   ggthemes::theme_few() +
-#   ggthemes::scale_color_colorblind()
-
+#| fig-cap: "Time series of contraceptive product stock distributed in selected sites for specific products (Jan 2016 – Dec 2019). To ensure clarity and prevent overplotting, only five of the products are displayed. These series were selected randomly and represent characteristic patterns at this level."
 
 id_code <- c("C2062AS27000", "C1073AS27133", "C4026AS27133", "C4061AS27138", "C1101AS27137", 'C2070AS46000')
 
@@ -162,8 +166,8 @@ stock_tsb_zero_remove %>%
     group_by(site_code, product_code) %>% 
     ggplot(aes(x = yearmonth, y = stock_distributed, color = product_code)) +
     geom_line() +
-    labs(x = "Month", y = "Stock Distributed") +
-    ggthemes::theme_few() +
+    labs(x = "Month", y = "Stock Distributed", color = 'Product Code') +
+    ggthemes::theme_few(base_family = "Assistant", base_size = 12) +
     # hrbrthemes::theme_ipsum() +
     # ggthemes::scale_color_colorblind() +
     facet_wrap(vars(site_code), scales = "free_y") +
@@ -178,9 +182,9 @@ As shown in @fig-feature, the strength of trend and seasonality for each time se
 ```{r}
 #| label: fig-feature
 #| cache: true
-#| out.width: "70%"
+#| out.width: "60%"
 #| fig.align: center
-#| fig-cap: "The trend strength and seasonality in the time series of stock distributed. The scatter plot comprises 1360 data points, with each point representing a specific time series."
+#| fig-cap: "Trend strength and seasonality in the time series of stock distribution. Each point in the scatter plot represents one of the 1,360 time series analysed, with trend and seasonality strengths measured on a scale from 0 to 1 (0 indicating weak and 1 indicating strong)."
 
 # time series features
 
@@ -192,7 +196,7 @@ stock_feat |>
   geom_point(alpha = 0.75) + 
   labs(x = "Strength of trend", y = "Strength of seasonality", color = 'Product code') +
   scale_color_viridis_d(option = "D") + # Use the viridis palette
-  ggthemes::theme_few()
+  ggthemes::theme_few(base_family = "Assistant", base_size = 12)
 
 ```
 
@@ -202,11 +206,13 @@ Our forecast setup began with data collection and preparation of a tidy dataset 
 
 In the USAID forecasting competition, the planning horizon was set to 3 months. However, instead of using fixed training and test sets as in the competition, we adopted the time series cross-validation approach to create the training and test sets [@hyndman2021forecasting]. Unlike the fixed approach, where the same training and test sets are used for evaluation, time series cross-validation moves the forecasting origin forward by a fixed number of steps, producing multiple forecasts at different points in time. This allows for the calculation of multi-step errors, giving a more robust view of how methods perform across various demand scenarios, such as periods of high and low demand [@svetunkov2023].
 
-In our study, we applied cross-validation, using one-step-ahead rolling windows with a 3-step-ahead forecasting horizon to align with the competition requirements. We limited the number of rolling origins to 3 per series due to computational constraints, but this still provided us with meaningful insights into method performance over time. For forecasting, we employed recursive multi-step forecasting and we generated 1000 future paths per a series. All method development and hyper-parameter tuning were conducted using only the training data to ensure that the evaluation remained unbiased and the methods were properly validated.
+In our cross-validation setup, we define the training period as all available data up to September 2019, ensuring sufficient historical observations for model learning. The testing period consists of rolling evaluation windows, where each test set spans a 3-step-ahead forecasting horizon to align with the competition requirements. At each iteration, the training set expands while the test set moves forward by one step, maintaining a consistent evaluation structure. We limited the number of rolling origins to 3 per series due to computational constraints, but this still provided us with meaningful insights into method performance over time. For forecasting, we employed recursive multi-step forecasting and we generated 1000 future paths per a series. All method development and hyper-parameter tuning were conducted using only the training data to ensure that the evaluation remained unbiased and the methods were properly validated.
 
 ### Probabilistic forecasting using bootstraping
 
 To express the uncertainty of our forecasting methods' estimates, we utilize probability distributions of potential future values. Several methods are available to estimate prediction intervals, including analytical prediction intervals, bootstrapping, quantile regression, Bayesian modeling (using MCMC sampling), and conformal prediction. In our study, we employ the bootstrapping method to estimate these intervals [@gneiting2014].
+
+Given that our study employs multiple forecasting methods, bootstrapping provides a unified framework that can be applied consistently without requiring additional parametric assumptions. Moreover, it allows us to approximate the empirical distribution of forecast errors without imposing strict distributional constraints, making it particularly suitable for datasets with varying demand patterns in the FPSC.
 
 To account for uncertainty in predictions, we assume that future errors will resemble past errors. We define the error as the difference between the actual value and the forecasted value:
 
@@ -366,7 +372,9 @@ library(kableExtra)
 
 ## Performance evaluation
 
-To assess the performance of our forecasting methods, we used both point forecast and probabilistic forecast evaluation metrics. We evaluated point forecasts using the MASE, a scale-independent metric that provides robustness, and stability [@kolassa2023]. The MASE formula is:
+To assess the performance of our forecasting methods, we used both point forecast and probabilistic forecast evaluation metrics. We evaluated point forecasts using the MASE. MASE was chosen for two primary reasons. First, it was the official evaluation metric used in the USAID Intelligent Forecasting Competition, allowing us to directly compare our model performance with previous benchmark results. Second, MASE is a scale-independent metric that provides robustness, and stability [@kolassa2023].
+
+The MASE formula is:
 
 $$
   \text{MASE} = \text{mean}(|q_{t}|),
@@ -381,7 +389,9 @@ $$
 
 Here, $e_t$ is the point forecast error for forecast period $t$, $m=12$ (to account for seasonality), $y_t$ is the observed value, and $n$ is the number of observations in the training set. The denominator is the mean absolute error of the seasonal naive method over the training sample, ensuring the error is properly scaled. Smaller MASE values indicate more accurate forecasts, and since it was the metric used in the USAID competition, it allows us to compare our results with the competition submissions.
 
-To evaluate the accuracy of probabilistic forecasts, we employed the CRPS, a widely used metric in probabilistic forecasting that assesses the sharpness and calibration of the forecast distribution. The CRPS is given by:
+To evaluate the accuracy of probabilistic forecasts, we employed the CRPS, a widely used metric in probabilistic forecasting that assesses the sharpness and calibration of the forecast distribution. 
+
+The CRPS is given by:
 
 $$
   \text{CRPS} = \text{mean}(p_j),
@@ -396,6 +406,8 @@ $$
 where $G_t(x)$ is the forecasted probability distribution function for the period $t$, and $F_t(x)$ is the true probability distribution function for the same period.
 
 CRPS is beneficial to our study as it measures the overall performance of the forecast distribution by rewarding sharpness and penalizing miscalibration [@gneiting2014]. Calibration measures how well predicted probabilities match the true observations, while sharpness focuses on the concentration of the forecast distributions [@wang2023]. Thus, CRPS provides a single score by evaluating both calibration and sharpness, making it easy to evaluate the performance of forecasting methods. In this formula, $G_t(x)$ is the forecasted cumulative distribution function (CDF) for time $t$ and $F_t(x)$ is the true CDF for the same time. The CRPS evaluates the difference between the predicted and actual probability distributions, with lower values indicating better performance [@ranjan]. It combines aspects of both calibration (the alignment of predicted probabilities with actual outcomes) and sharpness (the concentration of the forecast distribution), making it a comprehensive measure of forecast quality [@wang2023].
+
+While CRPS provides a comprehensive evaluation of the entire predictive distribution, there are cases where accuracy at specific quantiles is of particular interest. For example, in inventory management of family planning health commodities, higher quantiles (e.g., the 95th percentile) might be important to ensure efficient stock management and maintain a high service level. By accurately capturing demand at these upper quantiles, supply chain planners can better mitigate stockouts and ensure the consistent availability of essential health supplies. In such scenarios, the quantile score (or pinball score) becomes a more appropriate metric, as it directly evaluates forecast accuracy at the chosen quantile, ensuring a more targeted assessment of predictive performance.
 
 
 
